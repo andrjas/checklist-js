@@ -1,12 +1,13 @@
 /*!
- * checklist.js v1.0.0
+ * checklist.js v1.1.0
  * A tiny, dependency-free framework for static checklist pages.
  * Progress is stored in each visitor's own browser (localStorage).
  *
- * Three ways to define a list:
+ * Ways to define a list:
  *   1. Hard-coded HTML:  <div data-checklist="id"> <h3>Group</h3><ul><li>Item</li></ul> </div>
  *   2. JavaScript:       Checklist.create('#el', { id, title, items: [...] })
  *   3. JSON file:        <div data-checklist="id" data-src="data/list.json"></div>
+ *   4. Import page:      <div data-checklist-importer="id"></div>  (visitor imports a JSON file)
  */
 (function (global) {
   'use strict';
@@ -61,6 +62,30 @@
 .cl-foot { display: flex; justify-content: flex-end; margin-top: 1.5rem; }
 @media (prefers-reduced-motion: reduce) { .cl *, .cl *::before, .cl *::after { transition: none !important; } }
 
+/* Importer page: import screen + menu bar */
+.cl { --cl-menu-bg: #fff; --cl-menu-fg: #18212f; --cl-danger: #c92a2a; }
+.cl-import { max-width: 32rem; padding: 2.5rem 1.25rem; text-align: center; border: 2px dashed var(--cl-edge); border-radius: 14px; transition: background .15s, border-color .15s; }
+.cl-import.cl-drag { border-color: var(--cl-accent); background: color-mix(in srgb, var(--cl-accent) 8%, transparent); }
+.cl-import .cl-title { margin-bottom: .5rem; }
+.cl-import-hint { margin: 0 0 1.5rem; color: var(--cl-muted); }
+.cl-btn-big { padding: .8rem 1.6rem; font-size: 1.05rem; }
+.cl-error { margin: 1rem 0 0; color: var(--cl-danger); }
+.cl-error:empty { display: none; }
+.cl-import details { margin-top: 1.5rem; text-align: left; color: var(--cl-muted); font-size: .9rem; }
+.cl-import summary { cursor: pointer; text-align: center; }
+.cl-import pre { overflow: auto; margin: .75rem 0 0; padding: .75rem; border-radius: 8px; background: var(--cl-line); color: inherit; font-size: .85rem; }
+.cl.cl-menubar { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
+.cl-menu { position: relative; }
+.cl-menu-btn { width: 2.5rem; height: 2.5rem; border: 1px solid transparent; border-radius: 8px; background: none; color: inherit; font-size: 1.4rem; line-height: 1; cursor: pointer; }
+.cl-menu-btn:hover, .cl-menu-btn[aria-expanded="true"] { border-color: var(--cl-edge); }
+.cl-menu-btn:focus-visible, .cl-menu-item:focus-visible { outline: 3px solid color-mix(in srgb, var(--cl-accent) 50%, transparent); outline-offset: 2px; }
+.cl-menu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 10; min-width: 12rem; padding: .25rem;
+  border: 1px solid var(--cl-edge); border-radius: 10px; background: var(--cl-menu-bg); color: var(--cl-menu-fg); box-shadow: 0 8px 24px rgba(0, 0, 0, .18); }
+.cl-menu-list[hidden] { display: none; }
+.cl-menu-item { display: block; width: 100%; padding: .6rem .75rem; border: 0; border-radius: 7px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.cl-menu-item:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+.cl-menu-item.cl-danger { color: var(--cl-danger); }
+
 /* Optional page helper: <body class="cl-page"> */
 body.cl-page { margin: 0; padding: 2rem 1rem 4rem; background: #f7f8fa; color: #18212f; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 .cl-page a { color: #3b5bdb; }
@@ -68,7 +93,7 @@ body.cl-page { margin: 0; padding: 2rem 1rem 4rem; background: #f7f8fa; color: #
 @media (prefers-color-scheme: dark) {
   body.cl-page { background: #12161d; color: #e8ecf3; }
   .cl-page a { color: #8da2ff; }
-  .cl { --cl-accent: #4c6ef5; }
+  .cl { --cl-accent: #4c6ef5; --cl-menu-bg: #1d2430; --cl-menu-fg: #e8ecf3; --cl-danger: #ff8787; }
 }
 `;
 
@@ -154,6 +179,12 @@ body.cl-page { margin: 0; padding: 2rem 1rem 4rem; background: #f7f8fa; color: #
     return items;
   }
 
+  // localStorage key: kind + page path + id. The path matters because every repo
+  // under <user>.github.io shares one origin.
+  function keyFor(kind, id) {
+    return [kind, location.pathname.replace(/index\.html$/, ''), id].join(':');
+  }
+
   // localStorage with an in-memory fallback (private mode, blocked storage).
   function makeStore(key) {
     let memory = null;
@@ -165,6 +196,10 @@ body.cl-page { margin: 0; padding: 2rem 1rem 4rem; background: #f7f8fa; color: #
       write(value) {
         memory = value;
         try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* ignore */ }
+      },
+      clear() {
+        memory = null;
+        try { localStorage.removeItem(key); } catch (e) { /* ignore */ }
       }
     };
   }
@@ -193,8 +228,7 @@ body.cl-page { margin: 0; padding: 2rem 1rem 4rem; background: #f7f8fa; color: #
 
       this.root = root;
       this.groups = normalize(this.opts.items || parseDom(root));
-      this.key = this.opts.storageKey ||
-        ['checklist', location.pathname.replace(/index\.html$/, ''), this.opts.id].join(':');
+      this.key = this.opts.storageKey || keyFor('checklist', this.opts.id);
       this.store = makeStore(this.key);
       this.state = this._load();
 
@@ -378,6 +412,10 @@ body.cl-page { margin: 0; padding: 2rem 1rem 4rem; background: #f7f8fa; color: #
    * Auto-init for <div data-checklist="..."> (and optional data-src JSON)
    * ------------------------------------------------------------------ */
   function autoInit(scope) {
+    (scope || document).querySelectorAll('[data-checklist-importer]').forEach(node => {
+      if (!node.__clImporter) new ChecklistImporter(node);
+    });
+
     (scope || document).querySelectorAll('[data-checklist]').forEach(node => {
       if (node.__checklist || node.__clLoading) return;
       const src = node.dataset.src;
@@ -397,9 +435,213 @@ body.cl-page { margin: 0; padding: 2rem 1rem 4rem; background: #f7f8fa; color: #
     });
   }
 
+  /* ------------------------------------------------------------------ *
+   * Importer: a page with only an "Import" button. The chosen JSON file
+   * is validated, stored in this browser and shown as a checklist.
+   * "Clear checklist" (in the menu) removes it so a new file can be imported.
+   *
+   *   <div data-checklist-importer="my-list"></div>
+   *   Checklist.importer('#el', { id: 'my-list' })
+   *
+   * File format: an array of items, or { "title": "...", "items": [...] },
+   * with the same item/group shapes as Checklist. Imported files are treated
+   * as untrusted: "html" fields are reduced to plain text.
+   * ------------------------------------------------------------------ */
+  const MAX_IMPORT_BYTES = 1024 * 1024;
+  const EXAMPLE_JSON = '{\n  "title": "My checklist",\n  "items": [\n    { "group": "Morning", "items": ["Wake up", "Coffee"] },\n    "A loose item"\n  ]\n}';
+
+  function plainText(html) {
+    return new DOMParser().parseFromString(String(html), 'text/html').body.textContent.trim();
+  }
+
+  function cleanItems(list, nested) {
+    const out = [];
+    list.forEach(entry => {
+      if (entry && Array.isArray(entry.items)) {
+        const inner = cleanItems(entry.items, true);
+        if (!inner.length) return;
+        if (nested) out.push(...inner); // groups inside groups are flattened
+        else out.push({ group: String(entry.group || entry.title || '').slice(0, 200), items: inner });
+      } else {
+        const o = typeof entry === 'string' ? { text: entry } : (entry || {});
+        const text = o.html != null ? plainText(o.html) : String(o.text == null ? '' : o.text).trim();
+        if (!text) return;
+        const item = { text: text.slice(0, 500) };
+        if (o.id != null) item.id = String(o.id).slice(0, 100);
+        out.push(item);
+      }
+    });
+    return out;
+  }
+
+  function countItems(list) {
+    return list.reduce((n, e) => n + (e.items ? e.items.length : 1), 0);
+  }
+
+  function parseImport(text) {
+    let json;
+    try { json = JSON.parse(text); }
+    catch (e) { throw new Error('This file is not valid JSON.'); }
+    const items = Array.isArray(json) ? json : (json && json.items);
+    if (!Array.isArray(items)) {
+      throw new Error('No checklist found. The file needs a list of items, or an object with an "items" list.');
+    }
+    const clean = cleanItems(items, false);
+    if (!countItems(clean)) throw new Error('The file contains no items.');
+    const title = !Array.isArray(json) && typeof json.title === 'string' ? json.title.trim().slice(0, 200) : '';
+    return { v: 1, title, items: clean };
+  }
+
+  class ChecklistImporter {
+    constructor(target, options) {
+      const root = typeof target === 'string' ? document.querySelector(target) : target;
+      if (!root) throw new Error('Checklist importer: target not found: ' + target);
+      if (root.__clImporter) return root.__clImporter;
+      injectStyles();
+
+      const data = root.dataset;
+      this.opts = Object.assign({
+        id: data.checklistImporter || root.id || 'imported',
+        title: data.title || 'Import a checklist', // heading of the import screen
+        editable: 'editable' in data && data.editable !== 'false',
+        headingLevel: Number(data.headingLevel) || 2,
+        onImport: null // function (definition) {}
+      }, options);
+
+      this.root = root;
+      this.defKey = keyFor('checklist-def', this.opts.id);
+      this.stateKey = keyFor('checklist', this.opts.id);
+      this.defStore = makeStore(this.defKey);
+
+      // Another tab imported or cleared: follow it.
+      this._onStorage = e => { if (e.key === null || e.key === this.defKey) this._render(); };
+      window.addEventListener('storage', this._onStorage);
+
+      root.__clImporter = this;
+      this._render();
+    }
+
+    _loadDef() {
+      const def = this.defStore.read();
+      return def && Array.isArray(def.items) && def.items.length ? def : null;
+    }
+
+    _render() {
+      if (this._cleanup) { this._cleanup(); this._cleanup = null; }
+      if (this.checklist) { this.checklist.destroy(); this.checklist = null; }
+      const def = this._loadDef();
+      this.root.textContent = '';
+      if (def) this._renderList(def); else this._renderImport();
+    }
+
+    _renderImport() {
+      const level = Math.min(Math.max(this.opts.headingLevel, 1), 5);
+      const wrap = el('section', 'cl cl-import');
+      const error = el('p', 'cl-error', { role: 'alert' });
+      const input = el('input', null, { type: 'file', accept: '.json,application/json', hidden: '' });
+      const button = el('button', 'cl-btn cl-btn-big', { type: 'button', text: 'Import checklist' });
+
+      const details = el('details');
+      details.append(el('summary', null, { text: 'Expected file format' }), el('pre', null, { text: EXAMPLE_JSON }));
+
+      wrap.append(
+        el('h' + level, 'cl-title', { text: this.opts.title }),
+        el('p', 'cl-import-hint', { text: 'Choose a JSON file or drop it here. The checklist is saved in this browser only.' }),
+        button, input, error, details
+      );
+
+      const handle = file => {
+        error.textContent = '';
+        if (!file) return;
+        if (file.size > MAX_IMPORT_BYTES) { error.textContent = 'This file is too large (limit 1 MB).'; return; }
+        file.text()
+          .then(parseImport)
+          .then(def => {
+            this.defStore.write(def);
+            this._render();
+            if (typeof this.opts.onImport === 'function') this.opts.onImport(def);
+          })
+          .catch(err => { error.textContent = err.message; });
+      };
+
+      button.addEventListener('click', () => input.click());
+      input.addEventListener('change', () => { handle(input.files[0]); input.value = ''; });
+      wrap.addEventListener('dragover', e => { e.preventDefault(); wrap.classList.add('cl-drag'); });
+      wrap.addEventListener('dragleave', () => wrap.classList.remove('cl-drag'));
+      wrap.addEventListener('drop', e => {
+        e.preventDefault();
+        wrap.classList.remove('cl-drag');
+        handle(e.dataTransfer.files[0]);
+      });
+
+      this.root.append(wrap);
+    }
+
+    _renderList(def) {
+      const bar = el('div', 'cl cl-menubar');
+      const menu = el('div', 'cl-menu');
+      const toggle = el('button', 'cl-menu-btn', { type: 'button', 'aria-label': 'Menu', 'aria-haspopup': 'true', 'aria-expanded': 'false', text: '\u22EE' });
+      const list = el('div', 'cl-menu-list', { role: 'menu' });
+      list.hidden = true;
+      const clearBtn = el('button', 'cl-menu-item cl-danger', { type: 'button', role: 'menuitem', text: 'Clear checklist' });
+      list.append(clearBtn);
+      menu.append(toggle, list);
+      bar.append(menu);
+
+      const setOpen = open => {
+        list.hidden = !open;
+        toggle.setAttribute('aria-expanded', String(open));
+        if (open) clearBtn.focus();
+      };
+      const onDocClick = e => { if (!menu.contains(e.target)) setOpen(false); };
+      const onKey = e => { if (e.key === 'Escape' && !list.hidden) { setOpen(false); toggle.focus(); } };
+      document.addEventListener('click', onDocClick);
+      document.addEventListener('keydown', onKey);
+      this._cleanup = () => {
+        document.removeEventListener('click', onDocClick);
+        document.removeEventListener('keydown', onKey);
+      };
+
+      toggle.addEventListener('click', () => setOpen(list.hidden));
+      clearBtn.addEventListener('click', () => {
+        setOpen(false);
+        if (confirm('Clear this checklist?\n\nThe imported list, your progress and any items you added will be removed from this device. You can import a file again afterwards.')) {
+          this.clear();
+        }
+      });
+
+      const host = el('div');
+      this.root.append(bar, host);
+      this.checklist = new Checklist(host, {
+        id: this.opts.id,
+        title: def.title,
+        items: def.items,
+        editable: this.opts.editable,
+        headingLevel: this.opts.headingLevel,
+        storageKey: this.stateKey
+      });
+    }
+
+    /* ---- public API ---- */
+    // Removes the imported checklist and its progress from this browser (no confirmation).
+    clear() {
+      if (this.checklist) { this.checklist.destroy(); this.checklist = null; }
+      this.defStore.clear();
+      makeStore(this.stateKey).clear();
+      this._render();
+    }
+    destroy() {
+      window.removeEventListener('storage', this._onStorage);
+      if (this._cleanup) { this._cleanup(); this._cleanup = null; }
+      if (this.checklist) this.checklist.destroy();
+      delete this.root.__clImporter;
+    }
+  }
+
+  Checklist.importer = (target, options) => new ChecklistImporter(target, options);
   Checklist.create = (target, options) => new Checklist(target, options);
   Checklist.autoInit = autoInit;
-  Checklist.version = '1.0.0';
+  Checklist.version = '1.1.0';
   global.Checklist = Checklist;
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => autoInit());

@@ -1,0 +1,8 @@
+{
+  "title": "Camping trip",
+  "items": [
+    { "group": "Shelter", "items": ["Tent", "Sleeping bags", "Sleeping mats"] },
+    { "group": "Kitchen", "items": ["Stove", "Gas canister", "Lighter", "Cooler"] },
+    "First-aid kit"
+  ]
+}
