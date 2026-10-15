@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weekly groceries</title>
+  <script src="checklist.js" defer></script>
+</head>
+<body class="cl-page">
+  <nav class="cl-nav"><a href="./">All checklists</a></nav>
+
+  <!-- Items come from a JSON file in the repo. Edit the file, push, done.
+       Note: fetch() needs a web server, so test locally with e.g. `python3 -m http.server`. -->
+  <div data-checklist="groceries" data-src="data/groceries.json" data-heading-level="1" data-editable></div>
+</body>
+</html>

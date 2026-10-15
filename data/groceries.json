@@ -1,0 +1,8 @@
+{
+  "title": "Weekly groceries",
+  "items": [
+    { "group": "Fresh", "items": ["Apples", "Spinach", "Tomatoes", "Bread"] },
+    { "group": "Dairy", "items": ["Milk", "Eggs", "Butter"] },
+    { "group": "Pantry", "items": ["Rice", "Pasta", "Olive oil", "Coffee"] }
+  ]
+}

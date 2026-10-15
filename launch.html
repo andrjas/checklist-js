@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Release checklist</title>
+  <script src="checklist.js" defer></script>
+</head>
+<body class="cl-page">
+  <nav class="cl-nav"><a href="./">All checklists</a></nav>
+  <div id="list"></div>
+
+  <script defer>
+    // Runs after checklist.js (both are deferred, in order).
+    // Items can be built dynamically: loops, dates, anything JavaScript can do.
+    const environments = ['staging', 'production'];
+
+    Checklist.create('#list', {
+      id: 'release',
+      title: 'Release checklist',
+      headingLevel: 1,
+      editable: true,
+      onChange: state => console.log('checked:', state.checked.length),
+      items: [
+        { group: 'Before', items: [
+          'Changelog updated',
+          'Version number bumped',
+          { id: 'tests', text: 'All tests pass on main' }
+        ]},
+        // One group per environment, generated in a loop
+        ...environments.map(env => ({
+          group: 'Deploy to ' + env,
+          items: ['Run migrations', 'Deploy build', 'Smoke test ' + env]
+        })),
+        { group: 'After', items: [
+          { html: 'Announce in <a href="https://example.com">the team channel</a>' },
+          'Close the milestone'
+        ]}
+      ]
+    });
+  </script>
+</body>
+</html>
